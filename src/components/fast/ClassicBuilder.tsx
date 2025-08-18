@@ -397,14 +397,6 @@ function randomize() {
   setSelected(bestTeam);
 }
 
-
-  // memoria anti-duplicati (ultime 5)
-  const sig = bestTeam.map(p=>p.id).sort().join('|');
-  lastSigsRef.current = [sig, ...lastSigsRef.current.filter(s=>s!==sig)].slice(0,5);
-
-  setSelected(bestTeam);
-}
-
   // --- conferma ---
   const canConfirm =
     selected.length === 25 &&
