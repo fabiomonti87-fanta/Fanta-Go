@@ -214,24 +214,34 @@ function reorder<T>(arr: T[], from: number, to: number) {
       {/* panchina ordinabile */}
       <div className="rounded-xl bg-white/5 border border-white/10">
         <div className="px-4 py-3 border-b border-white/10 font-semibold">Panchina (trascinamento semplice ↑ ↓)</div>
-        <div className="divide-y divide-white/10">
-          {benchOrder.map((i, row) => {
-            const p = bench[i];
-            return (
-              <div key={p.id} className="px-4 py-2 flex items-center justify-between">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{p.role} • {p.name} <span className="text-white/60">({p.team})</span></div>
-                  <div className="text-xs text-white/70">FVM {p.price}</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button className="px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={()=>moveBench(i,-1)} disabled={row===0}>↑</button>
-                  <button className="px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={()=>moveBench(i, 1)} disabled={row===benchOrder.length-1}>↓</button>
-                </div>
-              </div>
-            );
-          })}
-          {bench.length === 0 && <div className="px-4 py-3 text-sm text-white/70">Nessun giocatore in panchina.</div>}
-        </div>
+     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+  {benchOrdered.map((b, i) => (
+    <div
+      key={b.id}
+      draggable
+      onDragStart={() => setDragFrom(i)}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => {
+        if (dragFrom === null || dragFrom === i) return;
+        // traduci indici "ordinati" -> indici originali
+        const fromOrig = benchOrder[dragFrom];
+        const toOrig = benchOrder[i];
+        const newOrder = benchOrder.slice();
+        const curPos = newOrder.indexOf(fromOrig);
+        const newPos = newOrder.indexOf(toOrig);
+        setBenchOrder(reorder(newOrder, curPos, newPos));
+        setDragFrom(null);
+      }}
+      className="rounded-lg bg-white/10 border border-white/10 px-3 py-2 cursor-move"
+      title="Trascina per riordinare"
+    >
+      <div className="font-semibold">{b.role} • {b.name}</div>
+      <div className="text-xs text-white/70">{b.team}</div>
+      <div className="text-xs text-white/90">FVM {b.price}</div>
+    </div>
+  ))}
+</div>
+
       </div>
     </div>
   );
