@@ -449,6 +449,51 @@ function randomize() {
     Proponi alternativa
   </button>
 </div>
+          <div className="mt-3 rounded-xl bg-white/5 border border-white/10 p-4">
+  <div className="flex items-center justify-between">
+    <div className="font-semibold">Impostazioni avanzate</div>
+    <button
+      type="button"
+      onClick={()=>setShowAdvanced(v=>!v)}
+      className="px-2 py-1 rounded-md bg-white/10 hover:bg-white/15 text-xs"
+    >
+      {showAdvanced ? 'Nascondi' : 'Mostra'}
+    </button>
+  </div>
+  {showAdvanced && (
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-3 text-sm">
+      <label className="space-y-1">
+        <div>Top %</div>
+        <input type="number" min={5} max={80} value={tierTopPct} onChange={e=>setTierTopPct(Number(e.target.value)||0)} className="w-full px-2 py-1 rounded bg-white/90 text-slate-900"/>
+      </label>
+      <label className="space-y-1">
+        <div>Mid %</div>
+        <input type="number" min={10} max={95} value={tierMidPct} onChange={e=>setTierMidPct(Number(e.target.value)||0)} className="w-full px-2 py-1 rounded bg-white/90 text-slate-900"/>
+      </label>
+      <label className="space-y-1">
+        <div>Max Top/ruolo</div>
+        <input type="number" min={0} max={5} value={maxTopPerRole} onChange={e=>setMaxTopPerRole(Number(e.target.value)||0)} className="w-full px-2 py-1 rounded bg-white/90 text-slate-900"/>
+      </label>
+      <label className="space-y-1">
+        <div>Tentativi</div>
+        <input type="number" min={4} max={64} value={rndAttempts} onChange={e=>setRndAttempts(Number(e.target.value)||0)} className="w-full px-2 py-1 rounded bg-white/90 text-slate-900"/>
+      </label>
+      <label className="space-y-1">
+        <div>Leftover target</div>
+        <input type="number" min={0} max={20} value={leftoverTarget} onChange={e=>setLeftoverTarget(Number(e.target.value)||0)} className="w-full px-2 py-1 rounded bg-white/90 text-slate-900"/>
+      </label>
+      <label className="space-y-1">
+        <div>Cap ruolo slack %</div>
+        <input type="number" min={0} max={50} value={roleCapSlackPct} onChange={e=>setRoleCapSlackPct(Number(e.target.value)||0)} className="w-full px-2 py-1 rounded bg-white/90 text-slate-900"/>
+      </label>
+      <label className="col-span-2 md:col-span-3 inline-flex items-center gap-2">
+        <input type="checkbox" checked={relaxRoleCaps} onChange={e=>setRelaxRoleCaps(e.target.checked)} />
+        <span>Permetti sforamento cap ruolo in fase di riempimento</span>
+      </label>
+    </div>
+  )}
+</div>
+
         </div>
       </div>
 
