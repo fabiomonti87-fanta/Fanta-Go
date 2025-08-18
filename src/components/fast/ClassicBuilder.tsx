@@ -200,158 +200,134 @@ const lastSigsRef = useRef<string[]>([]);
   const add    = (p: Player) => { if (canAdd(p)) setSelected(prev => [...prev, p]); };
   const remove = (id: string)  => setSelected(prev => prev.filter(x => x.id !== id));
 
-// --- RANDOM potenziato ---
-// SOSTITUISCI INTERAMENTE la funzione randomize() con questa:
 function randomize() {
   if (!players.length) return;
 
-  // pool per ruolo
+  // pool per ruolo (ordinati per prezzo desc)
   const poolByRole: Record<ClassicRole, Player[]> = { P:[], D:[], C:[], A:[] };
   for (const p of players) poolByRole[p.role].push(p);
   ROLE_ORDER.forEach(r => { poolByRole[r] = poolByRole[r].slice().sort((a,b)=>b.price-a.price); });
 
-  // target di budget per ruolo (vincolanti come "massimo")
   const targetByRole: Record<ClassicRole, number> = {
     P: Math.round(budget * pctP / 100),
     D: Math.round(budget * pctD / 100),
     C: Math.round(budget * pctC / 100),
     A: Math.round(budget * pctA / 100),
   };
+  const slackAbs = Math.round(budget * roleCapSlackPct / 100);
 
-  // helper: pick per ruolo rispettando target e contando i pezzi
   const pickRole = (role: ClassicRole, need: number, cap: number): { chosen: Player[]; spent: number } => {
-    // tiering per variabilità
-    const pool = shuffle(poolByRole[role]); // randomizzo l'ordine di ingresso
-    const sorted = pool.slice().sort((a,b)=>b.price-a.price); // per eventuali aggiustamenti
+    const sorted = poolByRole[role];
+    const n = sorted.length;
+    const tTop = Math.max(1, Math.floor(n * tierTopPct / 100));
+    const tMid = Math.max(tTop + 1, Math.floor(n * tierMidPct / 100));
+    const top = sorted.slice(0, tTop);
+    const mid = sorted.slice(tTop, tMid);
+    const low = sorted.slice(tMid);
 
-    const top = sorted.slice(0, Math.max(1, Math.floor(sorted.length*0.30)));
-    const mid = sorted.slice(top.length, Math.max(top.length+1, Math.floor(sorted.length*0.70)));
-    const low = sorted.slice(top.length+mid.length);
-
-    const tryFill = (buckets: Player[][]): { chosen: Player[]; spent: number } => {
-      const out: Player[] = [];
-      let spent = 0;
-
-      // 1-2 top se possibile
-      for (const p of shuffle(buckets[0])) {
-        if (out.length >= Math.min(2, need)) break;
-        if (spent + p.price <= cap) { out.push(p); spent += p.price; }
+    const takeFrom = (bucket: Player[], out: Player[], limit = Infinity, capLocal = cap) => {
+      let spent = out.reduce((s,p)=>s+p.price,0);
+      for (const p of shuffle(bucket)) {
+        if (out.length >= limit) break;
+        const nextCost = spent + p.price;
+        if (nextCost <= capLocal || (relaxRoleCaps && nextCost <= capLocal + slackAbs)) {
+          if (!out.some(x=>x.id===p.id)) { out.push(p); spent += p.price; }
+        }
       }
-
-      // mid
-      for (const p of shuffle(buckets[1])) {
-        if (out.length >= need) break;
-        if (spent + p.price <= cap) { out.push(p); spent += p.price; }
-      }
-
-      // low
-      for (const p of shuffle(buckets[2])) {
-        if (out.length >= need) break;
-        if (spent + p.price <= cap) { out.push(p); spent += p.price; }
-      }
-
-      // se ancora mancano slot, prendo i più economici rimasti (sempre <= cap)
-      let idx = sorted.length - 1;
-      while (out.length < need && idx >= 0) {
-        const p = sorted[idx--];
-        if (out.find(x=>x.id===p.id)) continue;
-        if (spent + p.price <= cap) { out.push(p); spent += p.price; }
-        else break; // non posso più aggiungere senza sforare cap ruolo
-      }
-      return { chosen: out, spent };
+      return spent;
     };
 
-    // primo tentativo
-    let { chosen, spent } = tryFill([top, mid, low]);
+    const out: Player[] = [];
+    let spent = 0;
+    // 1) 0..maxTopPerRole top
+    spent = takeFrom(top, out, Math.min(maxTopPerRole, need));
+    // 2) mid fino a coprire
+    spent = takeFrom(mid, out, need);
+    // 3) low fino a coprire
+    spent = takeFrom(low, out, need);
 
-    // micro-upgrade intra-ruolo per limare il leftover, senza superare cap ruolo
+    // 4) se ancora mancano slot, prendo i più economici rimasti (anche sforando cap se serve)
+    if (out.length < need) {
+      const asc = sorted.slice().sort((a,b)=>a.price-b.price);
+      let i = 0;
+      while (out.length < need && i < asc.length) {
+        const p = asc[i++];
+        if (out.some(x=>x.id===p.id)) continue;
+        out.push(p); spent += p.price; // potrei sforare cap ruolo; lo correggeremo dopo a livello globale
+      }
+    }
+    return { chosen: out, spent };
+  };
+
+  const downgradeToBudget = (team: Player[]): { ok: boolean; total: number } => {
+    let total = team.reduce((s,p)=>s+p.price,0);
+    const inTeam = () => new Set(team.map(t=>t.id));
+
     let guard = 0;
-    while (guard++ < 80 && chosen.length === need) {
-      // candidato swap: rimpiazzo il più economico con uno migliore se ci sto nel cap
-      const cheapestIdx = chosen.reduce((mi, x, i)=> x.price < chosen[mi].price ? i : mi, 0);
-      const cheapest = chosen[cheapestIdx];
-      const better = sorted.find(p => !chosen.some(c=>c.id===p.id) && p.price > cheapest.price && (spent - cheapest.price + p.price) <= cap);
-      if (!better) break;
-      spent = spent - cheapest.price + better.price;
-      chosen[cheapestIdx] = better;
+    while (total > budget && guard++ < 400) {
+      // player più caro del team
+      const cur = team.slice().sort((a,b)=>b.price-a.price)[0];
+      const role = cur.role;
+
+      // candidato più economico dello stesso ruolo non ancora nel team
+      const cand = poolByRole[role]
+        .filter(p => p.price < cur.price && !inTeam().has(p.id))
+        .slice().sort((a,b)=>a.price-b.price)[0];
+
+      if (!cand) break;
+
+      // applico swap
+      const idx = team.findIndex(t=>t.id===cur.id);
+      team[idx] = cand;
+      total = total - cur.price + cand.price;
     }
 
-    return { chosen, spent };
+    return { ok: total <= budget, total };
   };
 
   const needByRole = REQUIRED_COUNTS;
-
-  // Effettuo più tentativi e scelgo il migliore (leftover minore, niente duplicati)
   let bestTeam: Player[] = [];
-  let bestLeft = Infinity;
-  let attempts = 0;
+  let bestScore = Infinity;
 
-  while (attempts++ < 16) {
+  for (let attempt = 0; attempt < rndAttempts; attempt++) {
     const team: Player[] = [];
     let spentTot = 0;
 
-    // pick per ruolo a cap "vincolante"
     for (const r of ROLE_ORDER) {
-      const capR = targetByRole[r];
-      const { chosen, spent } = pickRole(r, needByRole[r], capR);
-      // se non riesco a coprire i pezzi minimi, abortisco tentativo
+      const { chosen, spent } = pickRole(r, needByRole[r], targetByRole[r]);
       if (chosen.length !== needByRole[r]) { spentTot = budget + 1; break; }
       team.push(...chosen);
       spentTot += spent;
     }
+    if (team.length !== 25) continue;
 
-    if (spentTot > budget) continue; // scarta tentativo
-
-    // upgrade cross-ruolo: prova ad alzare qualche slot dove rimane margine globale
-    let guard = 0;
-    while (guard++ < 120) {
-      let upgraded = false;
-      for (const r of ROLE_ORDER) {
-        const capR = targetByRole[r];
-        const inRole = team.filter(p=>p.role===r).sort((a,b)=>a.price-b.price);
-        const candidates = poolByRole[r].filter(p=>!team.some(t=>t.id===p.id)).sort((a,b)=>b.price-a.price);
-        for (const cand of candidates) {
-          // prova a sostituire il più economico
-          const idx = inRole.findIndex(Boolean);
-          if (idx<0) continue;
-          const cur = inRole[0];
-          const delta = cand.price - cur.price;
-          if (delta <= 0) continue;
-          if ( (team.filter(p=>p.role===r).reduce((s,p)=>s+p.price,0) + delta) > capR ) continue; // non superare cap ruolo
-          if (spentTot + delta > budget) continue; // non superare budget globale
-          // applico swap
-          const idxTeam = team.findIndex(t=>t.id===cur.id);
-          team[idxTeam] = cand;
-          spentTot += delta;
-          upgraded = true;
-          break;
-        }
-        if (upgraded) break;
-      }
-      if (!upgraded) break;
+    // se sforo budget globale, provo downgrade
+    if (spentTot > budget) {
+      const res = downgradeToBudget(team);
+      if (!res.ok) continue;
+      spentTot = res.total;
     }
 
     const leftNow = budget - spentTot;
+    const score = Math.abs(leftNow - leftoverTarget);
     const sig = team.map(p=>p.id).sort().join('|');
     const seen = new Set(lastSigsRef.current);
 
-    if (!seen.has(sig) && leftNow >= 0 && leftNow <= bestLeft) {
-      bestTeam = team;
-      bestLeft = leftNow;
-      if (bestLeft <= 1) break; // abbastanza a fondo cassa
+    if (!seen.has(sig) && score <= bestScore) {
+      bestTeam = team.slice();
+      bestScore = score;
+      if (score === 0) break;
     }
   }
 
   if (!bestTeam.length) return;
 
-  // aggiorno memoria anti-duplicati (ultime 5)
+  // memoria anti-duplicati (ultime 5)
   const sig = bestTeam.map(p=>p.id).sort().join('|');
   lastSigsRef.current = [sig, ...lastSigsRef.current.filter(s=>s!==sig)].slice(0,5);
 
   setSelected(bestTeam);
 }
-
-// --- fine randomize() ---
 
   // --- conferma ---
   const canConfirm =
