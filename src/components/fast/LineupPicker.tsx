@@ -49,6 +49,15 @@ export default function LineupPicker({
     ...att.filter(Boolean).map(p => (p as Player).id),
   ]), [gk, def, mid, att]);
 
+  const reorder = <T,>(arr: T[], from: number, to: number) => {
+  const a = arr.slice(); const [m] = a.splice(from,1); a.splice(to,0,m); return a;
+};
+
+const [dragDefFrom, setDragDefFrom] = useState<number|null>(null);
+const [dragMidFrom, setDragMidFrom] = useState<number|null>(null);
+const [dragAttFrom, setDragAttFrom] = useState<number|null>(null);
+shi
+
   const bench = useMemo(() => team.filter(p => !chosenIds.has(p.id)), [team, chosenIds]);
 
   const [benchOrder, setBenchOrder] = useState<number[]>(() => bench.map((_, i) => i));
@@ -118,28 +127,36 @@ function reorder<T>(arr: T[], from: number, to: number) {
     <div className="flex items-center justify-center gap-6">
       {slots.map((p, i) => (
         <div key={i} className="flex flex-col items-center">
-          <Shirt
-            number={numbers[i]}
-            player={p ?? undefined}
-            onClick={() => {
-              // apri mini menu: scegli dal bench di quel ruolo
-              const pool = avail(role);
-              if (!pool.length) return;
-              // pick semplice: prima scelta disponibile in ordine di prezzo
-              const choice = window.prompt(
-                `Scegli ${role} per lo slot #${numbers[i]}:\n` +
-                pool.slice(0, 12).map((x, idx) => `${idx+1}. ${x.name} (${x.team}) – ${x.price}`).join('\n') +
-                `\n\nDigita il numero (1-${Math.min(12, pool.length)}) oppure annulla`
-              );
-              const k = Number(choice) - 1;
-              if (!Number.isFinite(k) || k < 0 || k >= pool.length) return;
-              const pick = pool[k];
-
-              const next = slots.slice();
-              next[i] = pick;
-              setter(next);
-            }}
-          />
+        const Shirt = ({
+  number, player, onClick, draggable, onDragStart, onDragOver, onDrop
+}: {
+  number: number;
+  player?: Player | null;
+  onClick?: () => void;
+  draggable?: boolean;
+  onDragStart?: () => void;
+  onDragOver?: (e: React.DragEvent)=>void;
+  onDrop?: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    draggable={draggable}
+    onDragStart={onDragStart}
+    onDragOver={onDragOver}
+    onDrop={onDrop}
+    className={`relative flex flex-col items-center justify-center w-14 h-14 md:w-16 md:h-16 rounded-full bg-white/90 text-slate-900 shadow
+                hover:scale-105 transition ${player ? 'ring-2 ring-emerald-500 cursor-move' : 'cursor-pointer'}`}
+    title={player ? `${player.role} • ${player.name} (${player.team})` : 'Seleziona giocatore'}
+  >
+    <div className="text-base md:text-lg font-extrabold">{number}</div>
+    {player && (
+      <div className="absolute -bottom-5 md:-bottom-6 text-[10px] md:text-xs font-semibold text-white/90 truncate w-[96px] md:w-[120px] text-center">
+        {player.name}
+      </div>
+    )}
+  </button>
+);
           {p && (
             <button
               className="mt-8 text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15"
