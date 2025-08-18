@@ -48,6 +48,17 @@ export default function ClassicBuilder({
   // debug box dentro distribuzione crediti
   const [showDebug, setShowDebug] = useState(false);
 
+  // Advanced randomizer options
+const [showAdvanced, setShowAdvanced] = useState(false);
+const [tierTopPct, setTierTopPct] = useState(30);   // top bucket %
+const [tierMidPct, setTierMidPct] = useState(70);   // mid bucket % (low = resto)
+const [maxTopPerRole, setMaxTopPerRole] = useState(2); // quanti "top" max per ruolo
+const [rndAttempts, setRndAttempts] = useState(16); // tentativi
+const [leftoverTarget, setLeftoverTarget] = useState(1); // chiusura ideale di cassa
+const [relaxRoleCaps, setRelaxRoleCaps] = useState(true); // consenti sforare cap ruolo se serve
+const [roleCapSlackPct, setRoleCapSlackPct] = useState(25); // % di budget da concedere come slack per ruolo
+
+
 // SOSTITUISCI questa riga:
 // const lastSigRef = useRef<string>('');
 // CON:
