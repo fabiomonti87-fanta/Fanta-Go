@@ -53,6 +53,16 @@ export default function LineupPicker({
 
   const [benchOrder, setBenchOrder] = useState<number[]>(() => bench.map((_, i) => i));
 
+  const benchOrdered = useMemo(() => benchOrder.map(i => bench[i]).filter(Boolean), [bench, benchOrder]);
+const [dragFrom, setDragFrom] = useState<number | null>(null);
+
+function reorder<T>(arr: T[], from: number, to: number) {
+  const a = arr.slice();
+  const [m] = a.splice(from, 1);
+  a.splice(to, 0, m);
+  return a;
+}
+  
   // riallinea benchOrder quando cambia bench
   React.useEffect(() => {
     setBenchOrder(bench.map((_, i) => i));
