@@ -42,17 +42,22 @@ export default function LineupPicker({
   const [mid, setMid] = useState<(Player | null)[]>(Array(c).fill(null));
   const [att, setAtt] = useState<(Player | null)[]>(Array(a).fill(null));
 
-  const chosenIds = useMemo(() => new Set([
-    ...(gk ? [gk.id] : []),
-    ...def.filter(Boolean).map(p => (p as Player).id),
-    ...mid.filter(Boolean).map(p => (p as Player).id),
-    ...att.filter(Boolean).map(p => (p as Player).id),
-  ]), [gk, def, mid, att]);
-
-  const reorder = <T,>(arr: T[], from: number, to: number) => {
-  const a = arr.slice(); const [m] = a.splice(from,1); a.splice(to,0,m); return a;
-};
-
+{def.map((p,i)=>(
+  <Shirt
+    key={i}
+    number={nums.def[i]}
+    player={p}
+    onClick={() => {/* selezione come prima */}}
+    draggable={!!p}
+    onDragStart={() => setDragDefFrom(i)}
+    onDragOver={(e)=>e.preventDefault()}
+    onDrop={()=>{
+      if (dragDefFrom===null || dragDefFrom===i) return;
+      setDef(prev => reorder(prev, dragDefFrom, i));
+      setDragDefFrom(null);
+    }}
+  />
+))}
 const [dragDefFrom, setDragDefFrom] = useState<number|null>(null);
 const [dragMidFrom, setDragMidFrom] = useState<number|null>(null);
 const [dragAttFrom, setDragAttFrom] = useState<number|null>(null);
