@@ -62,7 +62,7 @@ export default function LineupPicker({
   };
   const avail = (role: ClassicRole) => bench.filter(p => p.role === role).sort((a,b)=>b.price-a.price);
 
-  // selezione rapida via prompt
+  // selezione rapida via prompt (fallback al click)
   function pickFor(role: ClassicRole, set: (arr: (Player | null)[]) => void, arr: (Player | null)[], idx: number) {
     const pool = avail(role);
     if (!pool.length) return;
@@ -84,7 +84,7 @@ export default function LineupPicker({
     ...(att.filter(Boolean) as Player[]),
   ];
 
-  // Shirt “compatta” + draggable
+  // Shirt “compatta” + (opz.) draggable
   const Shirt = ({
     number, player, onClick, draggable, onDragStart, onDragOver, onDrop
   }: {
@@ -116,7 +116,7 @@ export default function LineupPicker({
     </button>
   );
 
-  // Riga slot con drag&drop intra-linea
+  // Riga slot con drag&drop intra-linea + drop da panchina
   function SlotRow({
     role, slots, numbers, setter,
   }: {
@@ -133,13 +133,29 @@ export default function LineupPicker({
             <Shirt
               number={numbers[i]}
               player={p || undefined}
-              onClick={() => pickFor(role, setter, slots, i)}
-              draggable={!!p}
+              onClick={() => pickFor(role, setter, slots, i)}   // fallback click
+              draggable={!!p}                                    // riordino intra-linea
               onDragStart={() => setDragFrom(i)}
               onDragOver={(e)=>e.preventDefault()}
-              onDrop={()=>{
-                if (dragFrom===null || dragFrom===i) return;
-                setter(reorder(slots, dragFrom, i));
+              onDrop={(e)=>{
+                e.preventDefault();
+                // 1) drop da panchina
+                const fromBench = e.dataTransfer.getData('text/bench-ordered-index');
+                if (fromBench) {
+                  const idx = Number(fromBench);
+                  const dragged = benchOrdered[idx];
+                  if (dragged && dragged.role === role) {
+                    const next = slots.slice();
+                    next[i] = dragged;            // eventuale occupante tornerà in panchina automaticamente
+                    setter(next);
+                  }
+                  setDragFrom(null);
+                  return;
+                }
+                // 2) riordino intra-linea
+                if (dragFrom !== null && dragFrom !== i) {
+                  setter(reorder(slots, dragFrom, i));
+                }
                 setDragFrom(null);
               }}
             />
@@ -157,7 +173,7 @@ export default function LineupPicker({
     );
   }
 
-  // Drag&drop panchina
+  // Drag&drop panchina (riordino) + drag source per drop sulle maglie
   const [benchDragFrom, setBenchDragFrom] = useState<number | null>(null);
 
   return (
@@ -196,6 +212,13 @@ export default function LineupPicker({
             number={1}
             player={gk ?? undefined}
             onClick={() => pickFor('P', (arr)=>setGk(arr[0]), [gk], 0)}
+            onDragOver={(e)=>e.preventDefault()}
+            onDrop={(e)=>{
+              const fromBench = e.dataTransfer.getData('text/bench-ordered-index');
+              if (!fromBench) return;
+              const dragged = benchOrdered[Number(fromBench)];
+              if (dragged && dragged.role === 'P') setGk(dragged);
+            }}
           />
           {gk && (
             <button className="ml-4 text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15" onClick={()=>setGk(null)}>
@@ -207,19 +230,17 @@ export default function LineupPicker({
 
       {/* panchina */}
       <div className="rounded-xl bg-white/5 border border-white/10">
-        <div className="px-4 py-3 border-b border-white/10 font-semibold">Panchina (trascina per riordinare)</div>
+        <div className="px-4 py-3 border-b border-white/10 font-semibold">Panchina (trascina per riordinare o su una maglia)</div>
         <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-2">
           {benchOrdered.map((b, i) => (
             <div
               key={b.id}
               draggable
               onDragStart={(e) => {
-  setBenchDragFrom(i);
-  // DnD: serve sapere quale elemento della panchina (nell'ordine visualizzato) stiamo trascinando
-  e.dataTransfer.setData('text/bench-ordered-index', String(i));
-  e.dataTransfer.effectAllowed = 'move';
-}}
-
+                setBenchDragFrom(i);
+                e.dataTransfer.setData('text/bench-ordered-index', String(i));
+                e.dataTransfer.effectAllowed = 'move';
+              }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => {
                 if (benchDragFrom === null || benchDragFrom === i) return;
@@ -234,7 +255,7 @@ export default function LineupPicker({
                 setBenchDragFrom(null);
               }}
               className="rounded-lg bg-white/10 border border-white/10 px-3 py-2 cursor-move"
-              title="Trascina per riordinare"
+              title="Trascina per riordinare o su una maglia"
             >
               <div className="font-semibold">{b.role} • {b.name}</div>
               <div className="text-xs text-white/70">{b.team}</div>
