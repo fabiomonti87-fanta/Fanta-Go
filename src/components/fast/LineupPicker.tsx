@@ -213,7 +213,13 @@ export default function LineupPicker({
             <div
               key={b.id}
               draggable
-              onDragStart={() => setBenchDragFrom(i)}
+              onDragStart={(e) => {
+  setBenchDragFrom(i);
+  // DnD: serve sapere quale elemento della panchina (nell'ordine visualizzato) stiamo trascinando
+  e.dataTransfer.setData('text/bench-ordered-index', String(i));
+  e.dataTransfer.effectAllowed = 'move';
+}}
+
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => {
                 if (benchDragFrom === null || benchDragFrom === i) return;
